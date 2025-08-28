@@ -8,7 +8,7 @@ from src.DeepHME import DeepHME
 def main():
     file = uproot.open('nano_0.root')
     tree = file['Events']
-    branches_to_load = ['centralJet_pt, centralJet_eta, centralJet_phi, centralJet_mass',
+    branches_to_load = ['centralJet_pt', 'centralJet_eta', 'centralJet_phi', 'centralJet_mass',
                         'centralJet_btagPNetB', 'centralJet_btagPNetCvB', 'centralJet_btagPNetCvL', 'centralJet_btagPNetCvNotB',
                         'centralJet_btagPNetQvG', 'centralJet_PNetRegPtRawCorr', 'centralJet_PNetRegPtRawCorrNeutrino', 'centralJet_PNetRegPtRawRes',
                         'SelectedFatJet_pt', 'SelectedFatJet_eta', 'SelectedFatJet_phi', 'SelectedFatJet_mass',
