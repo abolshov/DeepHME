@@ -9,7 +9,7 @@ authors = [
 
 requires-python = ">=3.11"
 dependencies = [
-    "numpy>=1.26.4"
+    "numpy>=1.26.4",
     "onnxruntime>=1.22.0",
     "vector>=1.6.3",
     "awkward>=2.8.5",
