@@ -19,7 +19,7 @@ def main():
                         'event']
     branches = tree.arrays(branches_to_load)
 
-    estimator = DeepHME(model_name='predict_quantiles3D_DL_v4', output_format='mass', channel='DL')
+    estimator = DeepHME(model_name='predict_quantiles3D_DL_v8', output_format='mass', channel='DL')
     pred = estimator.predict(event_id=branches['event'],
                              lep1_pt=branches['lep1_pt'], 
                              lep1_eta=branches['lep1_eta'], 
