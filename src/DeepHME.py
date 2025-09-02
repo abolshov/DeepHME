@@ -23,25 +23,43 @@ class DeepHME:
         self._train_cfg_odd = self._load_cfg(f'{model_name}_odd')
         self._train_cfg_even = self._load_cfg(f'{model_name}_even')
 
-        # self._feature_map, self._object_count = self._gather_feature_info(self._train_cfg['input_names'])
         feature_map_odd, object_count_odd = self._gather_feature_info(self._train_cfg_odd['input_names'])
         feature_map_even, object_count_even = self._gather_feature_info(self._train_cfg_even['input_names'])
         assert feature_map_even == feature_map_odd and object_count_odd == object_count_even, 'Config mismatch between even and odd models'
         self._feature_map, self._object_count = feature_map_even, object_count_even
 
-        # FIXME: this must be two variables session for model for events with even event_id and separate session (and model) for odd
-        self._session = ort.InferenceSession(os.path.join(self._model_dir, 'model.onnx'))
-        self._model_input_name = self._session.get_inputs()[0].name
-        self._model_output_names = [out.name for out in self._session.get_outputs()]
+        self._session_even = ort.InferenceSession(os.path.join(self._model_dir, f'{model_name}_even.onnx'))
+        self._session_odd = ort.InferenceSession(os.path.join(self._model_dir, f'{model_name}_odd.onnx'))
+        input_name_odd = self._session_odd.get_inputs()[0].name
+        input_name_even = self._session_even.get_inputs()[0].name
+        assert input_name_even == input_name_odd, 'Input names mismatch between even and odd models'
+        self._model_input_name = input_name_even
+
+        output_names_even = [out.name for out in self._session_even.get_outputs()]
+        output_names_odd = [out.name for out in self._session_odd.get_outputs()]
+        assert output_names_even == output_names_odd, 'Output names mismatch between even and odd models'
+        self._model_output_names = output_names_even
 
         # all these parameters must be split into two: event and odd models will have different configs
-        quantiles = self._train_cfg['quantiles']
+        quantiles_even = self._train_cfg_even['quantiles']
+        quantiles_odd = self._train_cfg_odd['quantiles']
+        assert quantiles_even == quantiles_odd, '`quantiles` mismatch between even and odd models'
+        quantiles = quantiles_even
         self._is_quantile = quantiles is not None and len(quantiles) > 1 and 0.5 in quantiles
-        self._standardize = self._train_cfg['standardize']
-        self._input_means = self._train_cfg.get('input_train_means', None)
-        self._input_scales = self._train_cfg.get('input_train_scales', None)
-        self._target_means = self._train_cfg.get('target_train_means', None)
-        self._target_scales = self._train_cfg.get('target_train_scales', None)
+        
+        standardize_even = elf._train_cfg_even['standardize']
+        standardize_odd = elf._train_cfg_odd['standardize']
+        assert standardize_even == standardize_odd, '`standardize` mismatch between even and odd models'
+        self._standardize = standardize_even
+
+        self._input_means_even = self._train_cfg_even.get('input_train_means', None)
+        self._input_means_odd = self._train_cfg_odd.get('input_train_means', None)
+        self._input_scales_even = self._train_cfg_even.get('input_train_scales', None)
+        self._input_scales_odd = self._train_cfg_odd.get('input_train_scales', None)
+        self._target_means_even = self._train_cfg_even.get('target_train_means', None)
+        self._target_means_odd = self._train_cfg_odd.get('target_train_means', None)
+        self._target_scales_even = self._train_cfg_even.get('target_train_scales', None)
+        self._target_scales_odd = self._train_cfg_odd.get('target_train_scales', None)
 
     def _load_cfg(self, model_name):
         cfg = {}
