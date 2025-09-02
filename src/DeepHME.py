@@ -10,6 +10,7 @@ class DeepHME:
     def __init__(self, 
                  model_name=None,
                  output_format='p4',
+                 preserve_ids = False,
                  channel='DL'):
 
         if model_name is None:
@@ -17,6 +18,7 @@ class DeepHME:
 
         self._channel = channel
         self._output_format = output_format
+        self._preserve_ids = preserve_ids
         self._base_model_dir = 'models'
         self._model_dir = os.path.join(self._base_model_dir, model_name)
         
@@ -223,36 +225,62 @@ class DeepHME:
         df = self._concat_inputs(event_id, object_features)
 
         df_even = df[df['event_id'] % 2 == 0]
+        ids_even = df_even['event_id']
         df_odd = df[df['event_id'] % 2 == 1]
+        ids_odd = df_odd['event_id']
         df_even = df_even.drop(['event_id'], axis=1)
         df_odd = df_odd.drop(['event_id'], axis=1)
+        ids = np.concatenate([ids_even, ids_odd], axis=0)
 
         # reorder columns in dataframe to make sure features are in the same order as during training
-        df_even = df_even[self._train_cfg['input_names']]
-        df_odd = df_odd[self._train_cfg['input_names']]
+        df_even = df_even[self._train_cfg_even['input_names']]
+        df_odd = df_odd[self._train_cfg_odd['input_names']]
 
         X_even = df_even.values
         X_odd = df_odd.values
 
         if self._standardize:
-            X_odd -= self._input_means
-            X_odd /= self._input_scales
+            X_odd -= self._input_means_odd
+            X_odd /= self._input_scales_odd
 
-        # outputs_even = self._session.run(self._model_output_names, {self._model_input_name: X_even.astype(np.float32)})
-        outputs_odd = self._session.run(self._model_output_names, {self._model_input_name: X_odd.astype(np.float32)})
+            X_even -= self._input_means_odd
+            X_even /= self._input_scales_even
+
+        outputs_even = self._session_even.run(self._model_output_names, {self._model_input_name: X_even.astype(np.float32)})
+        outputs_odd = self._session_odd.run(self._model_output_names, {self._model_input_name: X_odd.astype(np.float32)})
         
         central_odd = None
+        central_even = None
         if self._is_quantile:
             central_odd = np.array([out[:, 1] for out in outputs_odd[:-1]]).T
+            central_even = np.array([out[:, 1] for out in outputs_even[:-1]]).T
         else:
             central_odd = np.array(outputs_odd[:-1]).T
+            central_even = np.array(outputs_even[:-1]).T
 
         if self._standardize:
-            central_odd *= self._target_scales
-            central_odd += self._target_means
+            central_odd *= self._target_scales_odd
+            central_odd += self._target_means_odd
 
-        mass = None
-        if self._output_format == 'mass':
-            mass = self._compute_mass(central_odd)
-            return mass
-        return central
+            central_even *= self._target_scales_even
+            central_even += self._target_means_even
+
+        match self._output_format:
+            case 'mass':
+                mass_odd = self._compute_mass(central_odd)
+                mass_even = self._compute_mass(central_even)
+                mass = np.concatenate([mass_even, mass_odd], axis=0)
+                if self._preserve_ids:
+                    return pd.DataFrame({'event_id': ids,
+                                         'mass': mass})
+                return mass
+            case 'p4':
+                p4 = np.concatenate([central_even, central_odd], axis=0)
+                if self._preserve_ids:
+                    col_dict = {'event_id': ids}
+                    col_dict.update({name: p4[:, i] for i, name in enumerate(self._model_output_names[:-1])})
+                    ids = np.concatenate([ids_even, ids_odd], axis=0)
+                    return pd.DataFrame.from_dict(col_dict)
+                return p4
+            case _:
+                raise RuntimeError(f'Illegal output format: `{self._output_format}`. Only `mass` or `p4` are supported.')
