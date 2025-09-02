@@ -238,10 +238,12 @@ class DeepHME:
                          'pz': lep1_p4.pz, 
                          'E': lep1_p4.E }
 
-        lep2_features = {'px': lep2_p4.px,
-                         'py': lep2_p4.py,
-                         'pz': lep2_p4.pz, 
-                         'E': lep2_p4.E }
+        lep2_features = None
+        if self._channel == 'DL':
+            lep2_features = {'px': lep2_p4.px,
+                             'py': lep2_p4.py,
+                             'pz': lep2_p4.pz, 
+                             'E': lep2_p4.E }
 
         met_features = {'px': met_p4.px,
                         'py': met_p4.py }
@@ -251,6 +253,8 @@ class DeepHME:
                            'lep1': lep1_features,
                            'lep2': lep2_features,
                            'met': met_features}
+        if self.channel == 'SL':
+            object_features.pop('lep2')
         df = self._concat_inputs(event_id, object_features)
 
         df_even = df[df['event_id'] % 2 == 0]
