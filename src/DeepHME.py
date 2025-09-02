@@ -7,6 +7,20 @@ import os
 import pandas as pd
 
 class DeepHME:
+    """
+    Heavy Mass Estimator based on deep neural network for X->HH->bbWW mass estimation.
+    Arguments:
+        model_name: string with name of the model to be used for calculation. Available models are located in `models/` directory
+                    Each subdirectory of `models/` contains folders with model names. These folders contain two model files in .onnx format
+                    and .yaml files with parameters used for training of the even and odd models. Even model was trained on events with even ids,
+                    odd - on events with odd ids. 
+        output_format: string with desired output format. Currently two output options are supported: `mass` and `p4`. If set to `mass`, 
+                    will return a numpy array of masses. Will concatenate masses for even ids and odd ids. If set to `p4`, will return numpy array of shape
+                    (n_events, 8). First 4 entries of axis=1 are `px`, `py`, `pz` and `E` of H->VV, next for - `px`, `py`, `pz` and `E` of H->bb in this order.
+        preserve_ids: bool indicating whether event ids should be returned or not. I set to `False`, return values are as described in `output_format`.
+                    If set to `True`, returns a pandas dataframe with first column `event_id` and other columns corresponding to quantities described in `output_format`.
+        channel: string specifyning channel. Options are `SL` and `DL`. Must be capital.
+    """
     def __init__(self, 
                  model_name=None,
                  output_format='p4',
@@ -15,6 +29,13 @@ class DeepHME:
 
         if model_name is None:
             raise RuntimeError('Must provide name of the model to use. Available models can be found in `models` directory.')
+
+        available_models = os.listdir('models')
+        if model_name not in available_models:
+            raise RuntimeError(f'Model `{model_name}` is not available, currently available models are {available_models}.')
+
+        if channel not in ['DL', 'SL']:
+            raise RuntimeError(f'Channel `{channel}` is not supported, options are `SL`, `DL`.')
 
         self._channel = channel
         self._output_format = output_format
@@ -30,6 +51,8 @@ class DeepHME:
         assert feature_map_even == feature_map_odd and object_count_odd == object_count_even, 'Config mismatch between even and odd models'
         self._feature_map, self._object_count = feature_map_even, object_count_even
 
+        # even model trained on events with even ids => apply it to odds
+        # odd model trained on events with odd ids => apply it to even
         self._session_even = ort.InferenceSession(os.path.join(self._model_dir, f'{model_name}_even.onnx'))
         self._session_odd = ort.InferenceSession(os.path.join(self._model_dir, f'{model_name}_odd.onnx'))
         input_name_odd = self._session_odd.get_inputs()[0].name
@@ -42,7 +65,6 @@ class DeepHME:
         assert output_names_even == output_names_odd, 'Output names mismatch between even and odd models'
         self._model_output_names = output_names_even
 
-        # all these parameters must be split into two: event and odd models will have different configs
         quantiles_even = self._train_cfg_even['quantiles']
         quantiles_odd = self._train_cfg_odd['quantiles']
         assert quantiles_even == quantiles_odd, '`quantiles` mismatch between even and odd models'
@@ -130,7 +152,14 @@ class DeepHME:
                 fatjet_pt=None, fatjet_eta=None, fatjet_phi=None, fatjet_mass=None,
                 fatjet_particleNet_QCD=None, fatjet_particleNet_XbbVsQCD=None, fatjet_particleNetWithMass_QCD=None, fatjet_particleNetWithMass_HbbvsQCD=None, fatjet_particleNet_massCorr=None):
 
-        self._validate_arguments(locals())
+        args = locals()
+        args.pop('self')
+        if self._channel == 'SL':
+            args.pop('lep2_px')
+            args.pop('lep2_pz')
+            args.pop('lep2_py')
+            args.pop('lep2_E')
+        self._validate_arguments(args)
 
         jet_pt = self._add_padding(jet_pt)
         jet_eta = self._add_padding(jet_eta)
@@ -246,8 +275,10 @@ class DeepHME:
             X_even -= self._input_means_odd
             X_even /= self._input_scales_even
 
-        outputs_even = self._session_even.run(self._model_output_names, {self._model_input_name: X_even.astype(np.float32)})
-        outputs_odd = self._session_odd.run(self._model_output_names, {self._model_input_name: X_odd.astype(np.float32)})
+        # even model trained on events with even ids => apply it to odds
+        # odd model trained on events with odd ids => apply it to even
+        outputs_even = self._session_odd.run(self._model_output_names, {self._model_input_name: X_even.astype(np.float32)})
+        outputs_odd = self._session_even.run(self._model_output_names, {self._model_input_name: X_odd.astype(np.float32)})
         
         central_odd = None
         central_even = None
