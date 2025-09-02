@@ -8,19 +8,26 @@ import pandas as pd
 
 class DeepHME:
     def __init__(self, 
-                 model_name='predict_quantiles3D_DL_v4',
+                 model_name=None,
                  output_format='p4',
                  channel='DL'):
+
+        if model_name is None:
+            raise RuntimeError('Must provide name of the model to use. Available models can be found in `models` directory.')
 
         self._channel = channel
         self._output_format = output_format
         self._base_model_dir = 'models'
         self._model_dir = os.path.join(self._base_model_dir, model_name)
-        self._train_cfg = {}
-        with open(os.path.join(self._model_dir, 'params_model.yaml'), 'r') as train_cfg_file:
-            self._train_cfg = yaml.safe_load(train_cfg_file)
+        
+        self._train_cfg_odd = self._load_cfg(f'{model_name}_odd')
+        self._train_cfg_even = self._load_cfg(f'{model_name}_even')
 
-        self._feature_map, self._object_count = self._gather_feature_info(self._train_cfg['input_names'])
+        # self._feature_map, self._object_count = self._gather_feature_info(self._train_cfg['input_names'])
+        feature_map_odd, object_count_odd = self._gather_feature_info(self._train_cfg_odd['input_names'])
+        feature_map_even, object_count_even = self._gather_feature_info(self._train_cfg_even['input_names'])
+        assert feature_map_even == feature_map_odd and object_count_odd == object_count_even, 'Config mismatch between even and odd models'
+        self._feature_map, self._object_count = feature_map_even, object_count_even
 
         # FIXME: this must be two variables session for model for events with even event_id and separate session (and model) for odd
         self._session = ort.InferenceSession(os.path.join(self._model_dir, 'model.onnx'))
@@ -35,6 +42,12 @@ class DeepHME:
         self._input_scales = self._train_cfg.get('input_train_scales', None)
         self._target_means = self._train_cfg.get('target_train_means', None)
         self._target_scales = self._train_cfg.get('target_train_scales', None)
+
+    def _load_cfg(self, model_name):
+        cfg = {}
+        with open(os.path.join(self._model_dir, f'params_{model_name}.yaml'), 'r') as train_cfg_file:
+            cfg = yaml.safe_load(train_cfg_file)
+        return cfg
 
     def _compute_mass(self, central):
         hvv_en = central[:, 3]
@@ -98,12 +111,6 @@ class DeepHME:
                 fatjet_particleNet_QCD=None, fatjet_particleNet_XbbVsQCD=None, fatjet_particleNetWithMass_QCD=None, fatjet_particleNetWithMass_HbbvsQCD=None, fatjet_particleNet_massCorr=None):
 
         self._validate_arguments(locals())
-
-        vars_to_pad = [jet_pt, jet_eta, jet_phi, jet_mass, 
-                       jet_btagPNetB, jet_btagPNetCvB, jet_btagPNetCvL, jet_btagPNetCvNotB, jet_btagPNetQvG,
-                       jet_PNetRegPtRawCorr, jet_PNetRegPtRawCorrNeutrino, jet_PNetRegPtRawRes,
-                       fatjet_pt, fatjet_eta, fatjet_phi, fatjet_mass,
-                       fatjet_particleNet_QCD, fatjet_particleNet_XbbVsQCD, fatjet_particleNetWithMass_QCD, fatjet_particleNetWithMass_HbbvsQCD, fatjet_particleNet_massCorr]
 
         jet_pt = self._add_padding(jet_pt)
         jet_eta = self._add_padding(jet_eta)
