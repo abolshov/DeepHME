@@ -47,8 +47,8 @@ class DeepHME:
         quantiles = quantiles_even
         self._is_quantile = quantiles is not None and len(quantiles) > 1 and 0.5 in quantiles
         
-        standardize_even = elf._train_cfg_even['standardize']
-        standardize_odd = elf._train_cfg_odd['standardize']
+        standardize_even = self._train_cfg_even['standardize']
+        standardize_odd = self._train_cfg_odd['standardize']
         assert standardize_even == standardize_odd, '`standardize` mismatch between even and odd models'
         self._standardize = standardize_even
 
