@@ -14,17 +14,10 @@ class DeepHME:
                     Each subdirectory of `models/` contains folders with model names. These folders contain two model files in .onnx format
                     and .yaml files with parameters used for training of the even and odd models. Even model was trained on events with even ids,
                     odd - on events with odd ids. 
-        output_format: string with desired output format. Currently two output options are supported: `mass` and `p4`. If set to `mass`, 
-                    will return a numpy array of masses. Will concatenate masses for even ids and odd ids. If set to `p4`, will return numpy array of shape
-                    (n_events, 8). First 4 entries of axis=1 are `px`, `py`, `pz` and `E` of H->VV, next for - `px`, `py`, `pz` and `E` of H->bb in this order.
-        preserve_ids: bool indicating whether event ids should be returned or not. I set to `False`, return values are as described in `output_format`.
-                    If set to `True`, returns a pandas dataframe with first column `event_id` and other columns corresponding to quantities described in `output_format`.
         channel: string specifyning channel. Options are `SL` and `DL`. Must be capital.
     """
     def __init__(self, 
                  model_name=None,
-                 output_format='p4',
-                 preserve_ids = False,
                  channel='DL'):
 
         if model_name is None:
@@ -38,8 +31,6 @@ class DeepHME:
             raise RuntimeError(f'Channel `{channel}` is not supported, options are `SL`, `DL`.')
 
         self._channel = channel
-        self._output_format = output_format
-        self._preserve_ids = preserve_ids
         self._base_model_dir = 'models'
         self._model_dir = os.path.join(self._base_model_dir, model_name)
         
@@ -150,15 +141,57 @@ class DeepHME:
                 jet_btagPNetB=None, jet_btagPNetCvB=None, jet_btagPNetCvL=None, jet_btagPNetCvNotB=None, jet_btagPNetQvG=None,
                 jet_PNetRegPtRawCorr=None, jet_PNetRegPtRawCorrNeutrino=None, jet_PNetRegPtRawRes=None,
                 fatjet_pt=None, fatjet_eta=None, fatjet_phi=None, fatjet_mass=None,
-                fatjet_particleNet_QCD=None, fatjet_particleNet_XbbVsQCD=None, fatjet_particleNetWithMass_QCD=None, fatjet_particleNetWithMass_HbbvsQCD=None, fatjet_particleNet_massCorr=None):
+                fatjet_particleNet_QCD=None, fatjet_particleNet_XbbVsQCD=None, fatjet_particleNetWithMass_QCD=None, fatjet_particleNetWithMass_HbbvsQCD=None, fatjet_particleNet_massCorr=None,
+                output_format='mass'):
+        """
+        Public interface for obtaining predictions of the model.
+        Arguments:
+            event_id: akward array of event ids
+            lep1_pt: akward array of lepton 1 pt 
+            lep1_eta: akward array of lepton 1 eta 
+            lep1_phi: akward array of lepton 1 phi
+            lep1_mass: akward array of lepton 1 phi mass
+            lep2_pt: akward array of lepton 2 pt
+            lep2_eta: akward array of lepton 2 eta
+            lep2_phi: akward array of lepton 2 phi
+            lep2_mass: akward array of lepton 2 mass
+            met_pt: akward array of met pt 
+            met_phi: akward array of met phi 
+            jet_pt: akward array of jet pt 
+            jet_eta: akward array of jet eta 
+            jet_phi: akward array of jet phi 
+            jet_mass: akward array of jet mass
+            jet_btagPNetB: akward array of jet btagPNetB scores
+            jet_btagPNetCvB: akward array of jet btagPNetCvB scores
+            jet_btagPNetCvL: akward array of nches['centralJet_btagPNetCvL'], 
+            jet_btagPNetCvNotB: akward array of nches['centralJet_btagPNetCvNotB'], 
+            jet_btagPNetQvG: akward array of nches['centralJet_btagPNetQvG'],
+            jet_PNetRegPtRawCorr: akward array of nches['centralJet_PNetRegPtRawCorr'], 
+            jet_PNetRegPtRawCorrNeutrino: akward array of nches['centralJet_PNetRegPtRawCorrNeutrino'], 
+            jet_PNetRegPtRawRes: akward array of nches['centralJet_PNetRegPtRawRes'],
+            fatjet_pt: akward array of nches['SelectedFatJet_pt'], 
+            fatjet_eta: akward array of nches['SelectedFatJet_eta'], 
+            fatjet_phi: akward array of nches['SelectedFatJet_phi'], 
+            fatjet_mass: akward array of nches['SelectedFatJet_mass'],
+            fatjet_particleNet_QCD: akward array of nches['SelectedFatJet_particleNet_QCD'], 
+            fatjet_particleNet_XbbVsQCD: akward array of nches['SelectedFatJet_particleNet_XbbVsQCD'], 
+            fatjet_particleNetWithMass_QCD: akward array of nches['SelectedFatJet_particleNetWithMass_QCD'], 
+            fatjet_particleNetWithMass_HbbvsQCD: akward array of nches['SelectedFatJet_particleNetWithMass_HbbvsQCD'], 
+            fatjet_particleNet_massCorr: akward array of nches['SelectedFatJet_particleNet_massCorr']
+            output_format: string with desired output format. Currently two output options are supported: `mass` and `p4`. If set to `mass`, 
+                    will return a numpy array of masses. If set to `p4`, will return numpy array of shape
+                    (n_events, 8). First 4 entries of axis=1 are `px`, `py`, `pz` and `E` of H->VV, next for - `px`, `py`, `pz` and `E` of H->bb in this order.
+                    Defaults to `mass`.
+        """
 
         args = locals()
         args.pop('self')
+        args.pop('output_format')
         if self._channel == 'SL':
-            args.pop('lep2_px')
-            args.pop('lep2_pz')
-            args.pop('lep2_py')
-            args.pop('lep2_E')
+            args.pop('lep2_pt')
+            args.pop('lep2_eta')
+            args.pop('lep2_phi')
+            args.pop('lep2_mass')
         self._validate_arguments(args)
 
         jet_pt = self._add_padding(jet_pt)
@@ -184,7 +217,9 @@ class DeepHME:
         fatjet_particleNet_massCorr = self._add_padding(fatjet_particleNet_massCorr)
 
         lep1_p4 = vector.zip({'pt': lep1_pt, 'eta': lep1_eta, 'phi': lep1_phi, 'mass': lep1_mass})
-        lep2_p4 = vector.zip({'pt': lep2_pt, 'eta': lep2_eta, 'phi': lep2_phi, 'mass': lep2_mass})
+        lep2_p4 = None
+        if self._channel == 'DL':
+            lep2_p4 = vector.zip({'pt': lep2_pt, 'eta': lep2_eta, 'phi': lep2_phi, 'mass': lep2_mass})
         met_p4 = vector.zip({'pt': met_pt, 'eta': 0.0, 'phi': met_phi, 'mass': 0.0})
         jet_p4 = vector.zip({'pt': jet_pt, 'eta': jet_eta, 'phi': jet_phi, 'mass': jet_mass})
         fatjet_p4 = vector.zip({'pt': fatjet_pt, 'eta': fatjet_eta, 'phi': fatjet_phi, 'mass': fatjet_mass})
@@ -253,17 +288,18 @@ class DeepHME:
                            'lep1': lep1_features,
                            'lep2': lep2_features,
                            'met': met_features}
-        if self.channel == 'SL':
+        if self._channel == 'SL':
             object_features.pop('lep2')
         df = self._concat_inputs(event_id, object_features)
 
+        # mask rows (events) with even event_id with True and odd with False
+        # to return one array of masses or p4s in the same order as it was passed
+        mask = np.where(df['event_id'] % 2 == 0, True, False)
+
         df_even = df[df['event_id'] % 2 == 0]
-        ids_even = df_even['event_id']
         df_odd = df[df['event_id'] % 2 == 1]
-        ids_odd = df_odd['event_id']
         df_even = df_even.drop(['event_id'], axis=1)
         df_odd = df_odd.drop(['event_id'], axis=1)
-        ids = np.concatenate([ids_even, ids_odd], axis=0)
 
         # reorder columns in dataframe to make sure features are in the same order as during training
         df_even = df_even[self._train_cfg_even['input_names']]
@@ -300,22 +336,20 @@ class DeepHME:
             central_even *= self._target_scales_even
             central_even += self._target_means_even
 
-        match self._output_format:
+        match output_format:
             case 'mass':
                 mass_odd = self._compute_mass(central_odd)
                 mass_even = self._compute_mass(central_even)
-                mass = np.concatenate([mass_even, mass_odd], axis=0)
-                if self._preserve_ids:
-                    return pd.DataFrame({'event_id': ids,
-                                         'mass': mass})
+                mass = np.full(len(df), -1)
+                mass[mask] = mass_even
+                mass[~mask] = mass_odd
                 return mass
             case 'p4':
-                p4 = np.concatenate([central_even, central_odd], axis=0)
-                if self._preserve_ids:
-                    col_dict = {'event_id': ids}
-                    col_dict.update({name: p4[:, i] for i, name in enumerate(self._model_output_names[:-1])})
-                    ids = np.concatenate([ids_even, ids_odd], axis=0)
-                    return pd.DataFrame.from_dict(col_dict)
+                assert central_even.shape[1] == central_odd.shape[1], 'P4 shape mismatch for even and odd events'
+                num_p4_comp = central_even.shape[1]
+                p4 = np.full((len(df), num_p4_comp), 1.0)
+                p4[mask] = central_even
+                p4[~mask] = central_odd
                 return p4
             case _:
-                raise RuntimeError(f'Illegal output format: `{self._output_format}`. Only `mass` or `p4` are supported.')
+                raise RuntimeError(f'Illegal output format: `{output_format}`. Only `mass` or `p4` are supported.')
