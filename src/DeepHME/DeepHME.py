@@ -145,6 +145,8 @@ class DeepHME:
                 output_format='mass'):
         """
         Public interface for obtaining predictions of the model.
+        Returns: np.array of mass of shape (num_events,) or np.array of p4 of shape (num_events, 8). 
+                First 4 entries of axis=1 are `px`, `py`, `pz` and `E` of H->VV, next for - `px`, `py`, `pz` and `E` of H->bb in this order.
         Arguments:
             event_id: akward array of event ids
             lep1_pt: akward array of lepton 1 pt 
@@ -163,21 +165,21 @@ class DeepHME:
             jet_mass: akward array of jet mass
             jet_btagPNetB: akward array of jet btagPNetB scores
             jet_btagPNetCvB: akward array of jet btagPNetCvB scores
-            jet_btagPNetCvL: akward array of nches['centralJet_btagPNetCvL'], 
-            jet_btagPNetCvNotB: akward array of nches['centralJet_btagPNetCvNotB'], 
-            jet_btagPNetQvG: akward array of nches['centralJet_btagPNetQvG'],
-            jet_PNetRegPtRawCorr: akward array of nches['centralJet_PNetRegPtRawCorr'], 
-            jet_PNetRegPtRawCorrNeutrino: akward array of nches['centralJet_PNetRegPtRawCorrNeutrino'], 
-            jet_PNetRegPtRawRes: akward array of nches['centralJet_PNetRegPtRawRes'],
-            fatjet_pt: akward array of nches['SelectedFatJet_pt'], 
-            fatjet_eta: akward array of nches['SelectedFatJet_eta'], 
-            fatjet_phi: akward array of nches['SelectedFatJet_phi'], 
-            fatjet_mass: akward array of nches['SelectedFatJet_mass'],
-            fatjet_particleNet_QCD: akward array of nches['SelectedFatJet_particleNet_QCD'], 
-            fatjet_particleNet_XbbVsQCD: akward array of nches['SelectedFatJet_particleNet_XbbVsQCD'], 
-            fatjet_particleNetWithMass_QCD: akward array of nches['SelectedFatJet_particleNetWithMass_QCD'], 
-            fatjet_particleNetWithMass_HbbvsQCD: akward array of nches['SelectedFatJet_particleNetWithMass_HbbvsQCD'], 
-            fatjet_particleNet_massCorr: akward array of nches['SelectedFatJet_particleNet_massCorr']
+            jet_btagPNetCvL: akward array of jet btagPNetCvL scores 
+            jet_btagPNetCvNotB: akward array of jet btagPNetCvNotB scores 
+            jet_btagPNetQvG: akward array of jet btagPNetQvG scores
+            jet_PNetRegPtRawCorr: akward array of jet PNetRegPtRawCorr 
+            jet_PNetRegPtRawCorrNeutrino: akward array of jet PNetRegPtRawCorrNeutrino 
+            jet_PNetRegPtRawRes: akward array of jet PNetRegPtRawRes
+            fatjet_pt: akward array of fatjet pt
+            fatjet_eta: akward array of fatjet eta
+            fatjet_phi: akward array of fatjet phi
+            fatjet_mass: akward array of fatjet mass 
+            fatjet_particleNet_QCD: akward array of fatjet particleNet_QCD score
+            fatjet_particleNet_XbbVsQCD: akward array of fatjet particleNet_XbbVsQCD score
+            fatjet_particleNetWithMass_QCD: akward array of fatjet particleNetWithMass_QCD score 
+            fatjet_particleNetWithMass_HbbvsQCD: akward array of fatjet particleNetWithMass_HbbvsQCD score
+            fatjet_particleNet_massCorr: akward array of fatjet particleNet_massCorr
             output_format: string with desired output format. Currently two output options are supported: `mass` and `p4`. If set to `mass`, 
                     will return a numpy array of masses. If set to `p4`, will return numpy array of shape
                     (n_events, 8). First 4 entries of axis=1 are `px`, `py`, `pz` and `E` of H->VV, next for - `px`, `py`, `pz` and `E` of H->bb in this order.
