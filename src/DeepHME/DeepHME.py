@@ -23,7 +23,11 @@ class DeepHME:
         if model_name is None:
             raise RuntimeError('Must provide name of the model to use. Available models can be found in `models` directory.')
 
-        available_models = os.listdir('models')
+        src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        pkg_dir = '/'.join(src_dir.split('/')[:-1])
+        models_dir = os.path.join(pkg_dir, 'models')
+
+        available_models = os.listdir(models_dir)
         if model_name not in available_models:
             raise RuntimeError(f'Model `{model_name}` is not available, currently available models are {available_models}.')
 
@@ -31,7 +35,7 @@ class DeepHME:
             raise RuntimeError(f'Channel `{channel}` is not supported, options are `SL`, `DL`.')
 
         self._channel = channel
-        self._base_model_dir = 'models'
+        self._base_model_dir = models_dir
         self._model_dir = os.path.join(self._base_model_dir, model_name)
         
         self._train_cfg_odd = self._load_cfg(f'{model_name}_odd')
