@@ -2,7 +2,7 @@ import numpy as np
 
 mh = 125.0
 
-class ErrorPropagator():
+class ErrorPropagator:
     """
     computes errors propagated from px, py, pz, E errors to mass errors
     """
@@ -51,7 +51,6 @@ class ErrorPropagator():
             dMx_dE = self.x_en[:, None]/self.mx[:, None]
 
             jacobian = np.concatenate([dMx_dp3, dMx_dE, dMx_dp3, dMx_dE], axis=1)
-            prin(jacobian.shape)
             n_ev, n_var = jacobian.shape
             jacobian = jacobian.reshape(n_ev, 1, n_var)
             assert jacobian.shape[-1] == 8
@@ -74,14 +73,14 @@ class ErrorPropagator():
         event_covar_mtrx = np.matmul(np.matmul(std_mtrx, self._global_corr_mtrx), std_mtrx)
         return event_covar_mtrx
 
-    def propagate_errors(self, errors, momentum):
+    def propagate(self, errors, momentum):
         """
         computes errors on mass from errors on p3 and E
         expected momentum shape is (n_events, 6) or (n_events, 8)
         """
-        momentum_shape = momentum.shape
+        momentum_shape = momentum.shape[-1]
         assert momentum_shape % 2 == 0, f'Momentum shape must be even, got {momentum_shape}'
-        hvv_momentum, hbb_momentum = momentum[:, momentum_shape[1]/2:], momentum[:, :momentum_shape[1]/2]
+        hvv_momentum, hbb_momentum = momentum[:, momentum_shape // 2:], momentum[:, :momentum_shape // 2]
 
         if hbb_momentum.shape[1] == 4:
             self.hbb_p3 = hbb_momentum[:, :3]
