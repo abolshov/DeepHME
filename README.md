@@ -78,3 +78,4 @@ mass, errors = estimator.predict(event_id=arr1,
                                 fatjet_particleNet_massCorr=arr32,
                                 output_format='mass')
 ```
+For currently available models, shape of returned errors is `(n_events, 1)` if `output_format` is set to `'mass'` and `(n_events, 6)` if it is set to `'p4'`. 
