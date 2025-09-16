@@ -6,6 +6,8 @@ import yaml
 import os
 import pandas as pd
 
+from src.DeepHME.ErrorProp import ErrorPropagator
+
 class DeepHME:
     """
     Heavy Mass Estimator based on deep neural network for X->HH->bbWW mass estimation.
@@ -18,10 +20,11 @@ class DeepHME:
     """
     def __init__(self, 
                  model_name=None,
+                 return_errors=False,
                  channel='DL'):
 
         if model_name is None:
-            raise RuntimeError('Must provide name of the model to use. Available models can be found in `models` directory.')
+            raise ValueError('Must provide name of the model to use. Available models can be found in `models` directory.')
 
         src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         pkg_dir = '/'.join(src_dir.split('/')[:-1])
@@ -32,7 +35,7 @@ class DeepHME:
             raise RuntimeError(f'Model `{model_name}` is not available, currently available models are {available_models}.')
 
         if channel not in ['DL', 'SL']:
-            raise RuntimeError(f'Channel `{channel}` is not supported, options are `SL`, `DL`.')
+            raise ValueError(f'Channel `{channel}` is not supported, options are `SL`, `DL`.')
 
         self._channel = channel
         self._base_model_dir = models_dir
@@ -65,20 +68,39 @@ class DeepHME:
         assert quantiles_even == quantiles_odd, '`quantiles` mismatch between even and odd models'
         quantiles = quantiles_even
         self._is_quantile = quantiles is not None and len(quantiles) > 1 and 0.5 in quantiles
+
+        assert self._train_cfg_even['use_energy_layer'] == self._train_cfg_odd['use_energy_layer'], '`use_energy_layer` mismatch between even/odd models training configs'
+        self._use_energy_layer = self._train_cfg_even['use_energy_layer']
         
         standardize_even = self._train_cfg_even['standardize']
         standardize_odd = self._train_cfg_odd['standardize']
         assert standardize_even == standardize_odd, '`standardize` mismatch between even and odd models'
         self._standardize = standardize_even
 
-        self._input_means_even = self._train_cfg_even.get('input_train_means', None)
-        self._input_means_odd = self._train_cfg_odd.get('input_train_means', None)
-        self._input_scales_even = self._train_cfg_even.get('input_train_scales', None)
-        self._input_scales_odd = self._train_cfg_odd.get('input_train_scales', None)
-        self._target_means_even = self._train_cfg_even.get('target_train_means', None)
-        self._target_means_odd = self._train_cfg_odd.get('target_train_means', None)
-        self._target_scales_even = self._train_cfg_even.get('target_train_scales', None)
-        self._target_scales_odd = self._train_cfg_odd.get('target_train_scales', None)
+        self._input_means_even = np.array(self._train_cfg_even.get('input_train_means', None))
+        self._input_means_odd = np.array(self._train_cfg_odd.get('input_train_means', None))
+        self._input_scales_even = np.array(self._train_cfg_even.get('input_train_scales', None))
+        self._input_scales_odd = np.array(self._train_cfg_odd.get('input_train_scales', None))
+        self._target_means_even = np.array(self._train_cfg_even.get('target_train_means', None))
+        self._target_means_odd = np.array(self._train_cfg_odd.get('target_train_means', None))
+        self._target_scales_even = np.array(self._train_cfg_even.get('target_train_scales', None))
+        self._target_scales_odd = np.array(self._train_cfg_odd.get('target_train_scales', None))
+
+        self._return_errors = return_errors
+        if self._return_errors and not self._is_quantile:
+            raise ValueError('Attempting to compute errors for non-quantile model: either make sure that chosen model computes quantiles or change value of `return_errors`')
+
+        # model trained on even events -> correlation matrix computed on odd => it should be applied to odd events to compute errors
+        # and vice versa
+        corr_mtrx_odd = self._train_cfg_even.get('global_corr_mtrx', None)
+        corr_mtrx_even = self._train_cfg_odd.get('global_corr_mtrx', None)
+
+        if self._return_errors:
+            assert corr_mtrx_even is not None and corr_mtrx_odd is not None, 'Global correlation matrix is absent in the train config'
+
+        # ep_odd to be applied to odd events, ep_even - to even
+        self._ep_odd = ErrorPropagator(corr_mtrx_odd)
+        self._ep_even = ErrorPropagator(corr_mtrx_even)
 
     def _load_cfg(self, model_name):
         cfg = {}
@@ -326,21 +348,33 @@ class DeepHME:
         outputs_even = self._session_odd.run(self._model_output_names, {self._model_input_name: X_even.astype(np.float32)})
         outputs_odd = self._session_even.run(self._model_output_names, {self._model_input_name: X_odd.astype(np.float32)})
         
-        central_odd = None
-        central_even = None
-        if self._is_quantile:
-            central_odd = np.array([out[:, 1] for out in outputs_odd[:-1]]).T
-            central_even = np.array([out[:, 1] for out in outputs_even[:-1]]).T
-        else:
-            central_odd = np.array(outputs_odd[:-1]).T
-            central_even = np.array(outputs_even[:-1]).T
+        outputs_odd = np.array([out for out in outputs_odd[:-1]])
+        outputs_even = np.array([out for out in outputs_even[:-1]])
+        outputs_odd = np.transpose(outputs_odd, (1, 0, 2))
+        outputs_even = np.transpose(outputs_even, (1, 0, 2))
 
         if self._standardize:
-            central_odd *= self._target_scales_odd
-            central_odd += self._target_means_odd
+            if self._is_quantile:
+                self._target_scales_odd = np.repeat(self._target_scales_odd[:, None], 3, axis=1)
+                self._target_means_odd = np.repeat(self._target_means_odd[:, None], 3, axis=1)
+                self._target_scales_even = np.repeat(self._target_scales_even[:, None], 3, axis=1)
+                self._target_means_even = np.repeat(self._target_means_even[:, None], 3, axis=1)
 
-            central_even *= self._target_scales_even
-            central_even += self._target_means_even
+            outputs_odd *= self._target_scales_odd
+            outputs_odd += self._target_means_odd
+            outputs_even *= self._target_scales_even
+            outputs_even += self._target_means_even
+
+        central_odd = outputs_odd[:, :, 1]
+        central_even = outputs_even[:, :, 1]
+
+        errors_odd = outputs_odd[:, :, 2] - outputs_odd[:, :, 0] 
+        errors_even = outputs_even[:, :, 2] - outputs_even[:, :, 0] 
+
+        if self._use_energy_layer:
+            # remove energy errors if energy was computed from mass constraint 
+            errors_odd = np.delete(errors_odd, [3, 7], axis=1)
+            errors_even = np.delete(errors_even, [3, 7], axis=1)
 
         match output_format:
             case 'mass':
@@ -349,6 +383,19 @@ class DeepHME:
                 mass = np.full(len(df), -1)
                 mass[mask] = mass_even
                 mass[~mask] = mass_odd
+
+                if self._return_errors:
+                    if self._use_energy_layer:
+                        central_even = np.delete(central_even, [3, 7], axis=1)
+                        central_odd = np.delete(central_odd, [3, 7], axis=1)
+                    errors_even = self._ep_odd.propagate(errors_even, central_even)
+                    errors_odd =  self._ep_even.propagate(errors_odd, central_odd)
+                    mass = np.full(len(df), -1)
+                    errors = np.full(len(df), -1)
+                    errors[mask] = errors_even
+                    errors[~mask] = errors_odd
+                    return mass, errors
+
                 return mass
             case 'p4':
                 assert central_even.shape[1] == central_odd.shape[1], 'P4 shape mismatch for even and odd events'
@@ -356,6 +403,15 @@ class DeepHME:
                 p4 = np.full((len(df), num_p4_comp), 1.0)
                 p4[mask] = central_even
                 p4[~mask] = central_odd
+
+                if self._return_errors:
+                    # in case of returning p4, if model predicts 3D momentum and computes energy,
+                    # returned errors are errors on 3D momentum only! (not implemented yet)
+                    errors = np.full((len(df), num_p4_comp), 1.0)
+                    errors[mask] = errors_even
+                    errors[~mask] = errors_odd
+                    return p4, errors
+
                 return p4
             case _:
                 raise RuntimeError(f'Illegal output format: `{output_format}`. Only `mass` or `p4` are supported.')
