@@ -41,7 +41,7 @@ For inference use method `predict`. It takes following arguments:
 30. `fatjet_particleNetWithMass_QCD`: akward array of fatjet particleNetWithMass_QCD score 
 31. `fatjet_particleNetWithMass_HbbvsQCD`: akward array of fatjet particleNetWithMass_HbbvsQCD score
 32. `fatjet_particleNet_massCorr`: akward array of fatjet particleNet_massCorr
-33. `output_format`: string with desired output format. Currently two output options are supported: `mass` and `p4`. If set to `mass`, will return a numpy array of masses. If set to `p4`, will return numpy array of shape (n_events, 8). First 4 entries of axis=1 are `px`, `py`, `pz` and `E` of H->VV, next for - `px`, `py`, `pz` and `E` of H->bb in this order. Defaults to `mass`.
+33. `output_format`: string with desired output format. Currently two output options are supported: `mass` and `p4`. If set to `mass`, will return a numpy array of masses. If set to `p4`, will return numpy array of shape `(n_events, 8)`. First 4 entries of `axis=1` are `px`, `py`, `pz` and `E` of H->VV, next for - `px`, `py`, `pz` and `E` of H->bb in this order. Defaults to `mass`.
 All arguments except for `output_format` default to `None`. If any of them is not provided, an excpetion will be thrown. It is only allowed to leave `lep2*` variables as `None` if `channel` set to `SL`. Usage example is 
 ```
 mass, errors = estimator.predict(event_id=arr1,
