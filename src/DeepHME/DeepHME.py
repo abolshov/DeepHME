@@ -390,7 +390,6 @@ class DeepHME:
                         central_odd = np.delete(central_odd, [3, 7], axis=1)
                     errors_even = self._ep_odd.propagate(errors_even, central_even)
                     errors_odd =  self._ep_even.propagate(errors_odd, central_odd)
-                    mass = np.full(len(df), -1)
                     errors = np.full(len(df), -1)
                     errors[mask] = errors_even
                     errors[~mask] = errors_odd
