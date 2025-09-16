@@ -7,7 +7,7 @@ from src.DeepHME.DeepHME import DeepHME
 
 def main():
     ch = 'DL'
-    file = uproot.open('../dl.root')
+    file = uproot.open('data/dl.root')
     tree = file['Events']
     branches_to_load = ['centralJet_pt', 'centralJet_eta', 'centralJet_phi', 'centralJet_mass',
                         'centralJet_btagPNetB', 'centralJet_btagPNetCvB', 'centralJet_btagPNetCvL', 'centralJet_btagPNetCvNotB',
