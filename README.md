@@ -1,6 +1,6 @@
 # DeepHME
 Heavy Mass Estimator ([HME](https://journals.aps.org/prd/abstract/10.1103/PhysRevD.96.035007)), but based on deep neural network.
-Example of usage is located in `example.py`, data file is provided in `data/`. To instantiate `DeepHME` object one must provide the following named arguments to the constructor:
+Example of usage is located in ([`example.py`](https://github.com/cms-flaf/DeepHME/blob/main/example.py)), data file is provided in `data/`. To instantiate `DeepHME` object one must provide the following named arguments to the constructor:
 1. `model_name`: string with the name of the model to be used for inference. Currently available models are located in `models/` directory together with their training configuration files. In case of selecting model absent in `models/` an exception is thrown.
 2. `channel`: string with the channel name. Must be uppercase. Allowed options are `SL` and `DL`. In the case of illegal value an exception will be thrown.
 3. `return_errors`: boolean flag indicating whether or not to return per-event errors computed by the model. Note that at construction stage it is checked that selected model is capable of computed errors. If it is not, an exception will be thrown.
