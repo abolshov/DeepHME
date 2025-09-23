@@ -1,6 +1,6 @@
 [project]
 name = "DeepHME"
-version = "1.0.0"
+version = "1.1.0"
 description = "Heavy Mass Estimator based on deep neural network"
 readme = "README.md"
 authors = [
@@ -23,11 +23,19 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/DeepHME"]
-include = ["src/DeepHME/*.py", 
-           "src/DeepHME/models/**/*"]
+only-include = [
+    "src/DeepHME/*.py", 
+    "src/DeepHME/models/**/*"
+]
 
-exclude = ["example.py",
-            "/data"]
+[tool.hatch.build.targets.sdist]
+only-include = [
+    "src/DeepHME",
+    "src/DeepHME/models/**/*",
+    "README.md",
+    "pyproject.toml",
+    "LICENSE"
+]
 
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
