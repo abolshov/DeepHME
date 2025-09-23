@@ -26,7 +26,8 @@ packages = ["src/DeepHME"]
 include = ["src/DeepHME/*.py", 
            "src/DeepHME/models/**/*"]
 
-exclude = ["example.py"]
+exclude = ["example.py",
+            "/data"]
 
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
