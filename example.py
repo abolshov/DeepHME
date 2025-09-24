@@ -3,7 +3,7 @@ import awkward as ak
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.DeepHME.DeepHME import DeepHME
+from DeepHME import DeepHME
 
 def main():
     ch = 'DL'

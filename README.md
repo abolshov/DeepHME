@@ -1,9 +1,14 @@
 # DeepHME
-Heavy Mass Estimator ([HME](https://journals.aps.org/prd/abstract/10.1103/PhysRevD.96.035007)), but based on deep neural network.
-Example of usage is located in `example.py`, data file is provided in `data/`. To instantiate `DeepHME` object one must provide the following named arguments to the constructor:
+Heavy Mass Estimator ([HME](https://journals.aps.org/prd/abstract/10.1103/PhysRevD.96.035007)), but based on deep neural network. 
+Package can be installed via
+```
+pip install DeepHME
+```
+Example of usage is located in ([`example.py`](https://github.com/cms-flaf/DeepHME/blob/main/example.py)), data file is provided in [`data`](https://github.com/cms-flaf/DeepHME/tree/main/data). To instantiate `DeepHME` object one must provide the following named arguments to the constructor:
 1. `model_name`: string with the name of the model to be used for inference. Currently available models are located in `models/` directory together with their training configuration files. In case of selecting model absent in `models/` an exception is thrown.
 2. `channel`: string with the channel name. Must be uppercase. Allowed options are `SL` and `DL`. In the case of illegal value an exception will be thrown.
 3. `return_errors`: boolean flag indicating whether or not to return per-event errors computed by the model. Note that at construction stage it is checked that selected model is capable of computed errors. If it is not, an exception will be thrown.
+It is recomnended to use `predict_quantiles3D_DL_v8` for double lepton channel and `predict_quantiles3D_SL_v3` for single lepton channel. Additionally, for bettter performance it is recommended to ensure that event contains at least 2 AK4 jets (in what follows referred to as jets) with `pt > 20.0` and `eta < 2.5` or at least one AK8 jet (in what follows referred to as fatjet) with `pt > 200.0` and `eta < 2.5` and two leptons with `pt > 5.0` for double lepton channel and at least 2 AK4 jets with `pt > 20.0` and `eta < 2.5` and at least 2 AK4 jets with `pt > 20.0` and `eta < 5.0` or least one AK8 jet with `pt > 200.0` and `eta < 2.5` and least one AK8 jet with `pt > 200.0` and `eta < 5.0` and one lepton with `pt > 5.0` for single lepton channel. AK4 jet candidates must satisfy $\Delta R \ge 0.4$ between AK4 jet and leptons. AK8 jet candidates must satisfy $\Delta R \ge 0.8$ between AK8 jet and leptons. Electrons must satisfy `abs(Electron_dz) < 0.1 && abs(Electron_dxy) < 0.05 && Electron_sip3d <= 8 && Electron_miniPFRelIso_all < 0.4 && Electron_mvaIso_WP90 &&  Electron_mvaIso_WP80`. Muons must satisfy `abs(Muon_dz) < 0.1 && abs(Muon_dxy) < 0.05 && abs(Muon_dxy) < 0.05 && Muon_sip3d <= 8 && Muon_pfIsoId >= 1 && Muon_looseId && Muon_tightId`. Object variable naming is consistent with [NanoAODv12](https://cms-nanoaod-integration.web.cern.ch/autoDoc/NanoAODv12/2022/2023/doc_DYJetsToLL_M-50_TuneCP5_13p6TeV-madgraphMLM-pythia8_Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2.html) for Run 3 2022/2023 eras.
 Example of initialziation is 
 ```
 estimator = DeepHME(model_name='predict_quantiles3D_DL_v8', channel=ch, return_errors=True)

@@ -5,8 +5,9 @@ import onnxruntime as ort
 import yaml
 import os
 import pandas as pd
+import importlib.resources as resources
 
-from src.DeepHME.ErrorProp import ErrorPropagator
+from DeepHME.ErrorProp import ErrorPropagator
 
 class DeepHME:
     """
@@ -26,20 +27,22 @@ class DeepHME:
         if model_name is None:
             raise ValueError('Must provide name of the model to use. Available models can be found in `models` directory.')
 
-        src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        pkg_dir = '/'.join(src_dir.split('/')[:-1])
-        models_dir = os.path.join(pkg_dir, 'models')
+        self._model_dir = resources.files(f'DeepHME.models.{model_name}')
 
-        available_models = os.listdir(models_dir)
-        if model_name not in available_models:
-            raise RuntimeError(f'Model `{model_name}` is not available, currently available models are {available_models}.')
+        # Build expected file paths
+        even_path = self._model_dir / f"{model_name}_even.onnx"
+        odd_path  = self._model_dir / f"{model_name}_odd.onnx"
+
+        # Check both files exist
+        if not os.path.exists(even_path):
+            raise FileNotFoundError(f"Model file {even_path} not found.")
+        if not os.path.exists(odd_path):
+            raise FileNotFoundError(f"Model file {odd_path} not found.")
 
         if channel not in ['DL', 'SL']:
             raise ValueError(f'Channel `{channel}` is not supported, options are `SL`, `DL`.')
 
         self._channel = channel
-        self._base_model_dir = models_dir
-        self._model_dir = os.path.join(self._base_model_dir, model_name)
         
         self._train_cfg_odd = self._load_cfg(f'{model_name}_odd')
         self._train_cfg_even = self._load_cfg(f'{model_name}_even')
@@ -51,8 +54,8 @@ class DeepHME:
 
         # even model trained on events with even ids => apply it to odds
         # odd model trained on events with odd ids => apply it to even
-        self._session_even = ort.InferenceSession(os.path.join(self._model_dir, f'{model_name}_even.onnx'))
-        self._session_odd = ort.InferenceSession(os.path.join(self._model_dir, f'{model_name}_odd.onnx'))
+        self._session_even = ort.InferenceSession(str(even_path))
+        self._session_odd = ort.InferenceSession(str(odd_path))
         input_name_odd = self._session_odd.get_inputs()[0].name
         input_name_even = self._session_even.get_inputs()[0].name
         assert input_name_even == input_name_odd, 'Input names mismatch between even and odd models'
@@ -104,7 +107,8 @@ class DeepHME:
 
     def _load_cfg(self, model_name):
         cfg = {}
-        with open(os.path.join(self._model_dir, f'params_{model_name}.yaml'), 'r') as train_cfg_file:
+        cfg_path = self._model_dir / f'params_{model_name}.yaml'
+        with open(str(cfg_path), 'r') as train_cfg_file:
             cfg = yaml.safe_load(train_cfg_file)
         return cfg
 
