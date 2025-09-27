@@ -7,7 +7,7 @@ import os
 import pandas as pd
 import importlib.resources as resources
 
-from DeepHME.ErrorProp import ErrorPropagator
+from .ErrorProp import ErrorPropagator
 
 class DeepHME:
     """
@@ -27,11 +27,12 @@ class DeepHME:
         if model_name is None:
             raise ValueError('Must provide name of the model to use. Available models can be found in `models` directory.')
 
-        self._model_dir = resources.files(f'DeepHME.models.{model_name}')
+        package_dir = os.path.dirname(__file__) 
+        self._model_dir = os.path.join(package_dir, "models", model_name)
 
         # Build expected file paths
-        even_path = self._model_dir / f"{model_name}_even.onnx"
-        odd_path  = self._model_dir / f"{model_name}_odd.onnx"
+        even_path = os.path.join(self._model_dir, f"{model_name}_even.onnx")
+        odd_path = os.path.join(self._model_dir, f"{model_name}_odd.onnx")
 
         # Check both files exist
         if not os.path.exists(even_path):
@@ -107,7 +108,8 @@ class DeepHME:
 
     def _load_cfg(self, model_name):
         cfg = {}
-        cfg_path = self._model_dir / f'params_{model_name}.yaml'
+        # cfg_path = self._model_dir / f'params_{model_name}.yaml'
+        cfg_path = os.path.join(self._model_dir, f'params_{model_name}.yaml')
         with open(str(cfg_path), 'r') as train_cfg_file:
             cfg = yaml.safe_load(train_cfg_file)
         return cfg
