@@ -5,7 +5,6 @@ import onnxruntime as ort
 import yaml
 import os
 import pandas as pd
-import importlib.resources as resources
 
 from .ErrorProp import ErrorPropagator
 
