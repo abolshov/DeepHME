@@ -375,13 +375,13 @@ class DeepHME:
         central_odd = outputs_odd[:, :, 1]
         central_even = outputs_even[:, :, 1]
 
-        errors_odd = outputs_odd[:, :, 2] - outputs_odd[:, :, 0] 
-        errors_even = outputs_even[:, :, 2] - outputs_even[:, :, 0] 
+        p4_errors_odd = outputs_odd[:, :, 2] - outputs_odd[:, :, 0] 
+        p4_errors_even = outputs_even[:, :, 2] - outputs_even[:, :, 0] 
 
         if self._use_energy_layer:
             # remove energy errors if energy was computed from mass constraint 
-            errors_odd = np.delete(errors_odd, [3, 7], axis=1)
-            errors_even = np.delete(errors_even, [3, 7], axis=1)
+            p4_errors_odd = np.delete(p4_errors_odd, [3, 7], axis=1)
+            p4_errors_even = np.delete(p4_errors_even, [3, 7], axis=1)
 
         match output_format:
             case 'mass':
@@ -395,12 +395,12 @@ class DeepHME:
                     if self._use_energy_layer:
                         central_even = np.delete(central_even, [3, 7], axis=1)
                         central_odd = np.delete(central_odd, [3, 7], axis=1)
-                    errors_even = self._ep_odd.propagate(errors_even, central_even)
-                    errors_odd =  self._ep_even.propagate(errors_odd, central_odd)
-                    errors = np.full(len(df), -1)
-                    errors[mask] = errors_even
-                    errors[~mask] = errors_odd
-                    return mass, errors
+                    errors_even = self._ep_odd.propagate(p4_errors_even, central_even)
+                    errors_odd = self._ep_even.propagate(p4_errors_odd, central_odd)
+                    mass_errors = np.full(len(df), -1)
+                    mass_errors[mask] = errors_even
+                    mass_errors[~mask] = errors_odd
+                    return mass, mass_errors
 
                 return mass
             case 'p4':
@@ -413,10 +413,13 @@ class DeepHME:
                 if self._return_errors:
                     # in case of returning p4, if model predicts 3D momentum and computes energy,
                     # returned errors are errors on 3D momentum only! (not implemented yet)
-                    errors = np.full((len(df), num_p4_comp), 1.0)
-                    errors[mask] = errors_even
-                    errors[~mask] = errors_odd
-                    return p4, errors
+                    assert p4_errors_even.shape[1] == p4_errors_odd.shape[1], 'P4 error shape mismatch for even and odd events'
+                    num_p4_error_comp = p4_errors_even.shape[1]
+                    
+                    p4_errors = np.full((len(df), num_p4_error_comp), 1.0)
+                    p4_errors[mask] = p4_errors_even
+                    p4_errors[~mask] = p4_errors_odd
+                    return p4, p4_errors
 
                 return p4
             case _:
