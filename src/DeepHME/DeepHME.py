@@ -5,9 +5,8 @@ import onnxruntime as ort
 import yaml
 import os
 import pandas as pd
-import importlib.resources as resources
 
-from DeepHME.ErrorProp import ErrorPropagator
+from .ErrorProp import ErrorPropagator
 
 class DeepHME:
     """
@@ -27,11 +26,12 @@ class DeepHME:
         if model_name is None:
             raise ValueError('Must provide name of the model to use. Available models can be found in `models` directory.')
 
-        self._model_dir = resources.files(f'DeepHME.models.{model_name}')
+        package_dir = os.path.dirname(__file__) 
+        self._model_dir = os.path.join(package_dir, "models", model_name)
 
         # Build expected file paths
-        even_path = self._model_dir / f"{model_name}_even.onnx"
-        odd_path  = self._model_dir / f"{model_name}_odd.onnx"
+        even_path = os.path.join(self._model_dir, f"{model_name}_even.onnx")
+        odd_path = os.path.join(self._model_dir, f"{model_name}_odd.onnx")
 
         # Check both files exist
         if not os.path.exists(even_path):
@@ -89,6 +89,14 @@ class DeepHME:
         self._target_scales_even = np.array(self._train_cfg_even.get('target_train_scales', None))
         self._target_scales_odd = np.array(self._train_cfg_odd.get('target_train_scales', None))
 
+        # if model is quantile, each output node has 3 values
+        # when standardizing each must be transformed => need to repeat means and scales arrays
+        if self._is_quantile:
+            self._target_scales_odd = np.repeat(self._target_scales_odd[:, None], 3, axis=1)
+            self._target_means_odd = np.repeat(self._target_means_odd[:, None], 3, axis=1)
+            self._target_scales_even = np.repeat(self._target_scales_even[:, None], 3, axis=1)
+            self._target_means_even = np.repeat(self._target_means_even[:, None], 3, axis=1)
+
         self._return_errors = return_errors
         if self._return_errors and not self._is_quantile:
             raise ValueError('Attempting to compute errors for non-quantile model: either make sure that chosen model computes quantiles or change value of `return_errors`')
@@ -107,7 +115,7 @@ class DeepHME:
 
     def _load_cfg(self, model_name):
         cfg = {}
-        cfg_path = self._model_dir / f'params_{model_name}.yaml'
+        cfg_path = os.path.join(self._model_dir, f'params_{model_name}.yaml')
         with open(str(cfg_path), 'r') as train_cfg_file:
             cfg = yaml.safe_load(train_cfg_file)
         return cfg
@@ -142,9 +150,10 @@ class DeepHME:
             object_features[uo] = list(features)
         return object_features, object_count
 
-    def _add_padding(self, x):
-        max_len = ak.max(ak.count(x, axis=1))
-        x_padded = ak.fill_none(ak.pad_none(x, max_len), 0)
+    def _add_padding(self, x, max_needed):
+        max_available = ak.max(ak.count(x, axis=1))
+        pad_length = max(max_available, max_needed)
+        x_padded = ak.fill_none(ak.pad_none(x, pad_length), 0)
         return x_padded
 
     def _validate_arguments(self, args):
@@ -226,27 +235,30 @@ class DeepHME:
             args.pop('lep2_mass')
         self._validate_arguments(args)
 
-        jet_pt = self._add_padding(jet_pt)
-        jet_eta = self._add_padding(jet_eta)
-        jet_phi = self._add_padding(jet_phi)
-        jet_mass = self._add_padding(jet_mass)
-        jet_btagPNetB = self._add_padding(jet_btagPNetB)
-        jet_btagPNetCvB = self._add_padding(jet_btagPNetCvB)
-        jet_btagPNetCvL = self._add_padding(jet_btagPNetCvL)
-        jet_btagPNetCvNotB = self._add_padding(jet_btagPNetCvNotB)
-        jet_btagPNetQvG = self._add_padding(jet_btagPNetQvG)
-        jet_PNetRegPtRawCorr = self._add_padding(jet_PNetRegPtRawCorr)
-        jet_PNetRegPtRawCorrNeutrino = self._add_padding(jet_PNetRegPtRawCorrNeutrino)
-        jet_PNetRegPtRawRes = self._add_padding(jet_PNetRegPtRawRes)
-        fatjet_pt = self._add_padding(fatjet_pt)
-        fatjet_eta = self._add_padding(fatjet_eta)
-        fatjet_phi = self._add_padding(fatjet_phi)
-        fatjet_mass = self._add_padding(fatjet_mass)
-        fatjet_particleNet_QCD = self._add_padding(fatjet_particleNet_QCD)
-        fatjet_particleNet_XbbVsQCD = self._add_padding(fatjet_particleNet_XbbVsQCD)
-        fatjet_particleNetWithMass_QCD = self._add_padding(fatjet_particleNetWithMass_QCD)
-        fatjet_particleNetWithMass_HbbvsQCD = self._add_padding(fatjet_particleNetWithMass_HbbvsQCD)
-        fatjet_particleNet_massCorr = self._add_padding(fatjet_particleNet_massCorr)
+        num_jet = self._object_count['centralJet']
+        num_fatjet = self._object_count['SelectedFatJet']
+
+        jet_pt = self._add_padding(jet_pt, num_jet)
+        jet_eta = self._add_padding(jet_eta, num_jet)
+        jet_phi = self._add_padding(jet_phi, num_jet)
+        jet_mass = self._add_padding(jet_mass, num_jet)
+        jet_btagPNetB = self._add_padding(jet_btagPNetB, num_jet)
+        jet_btagPNetCvB = self._add_padding(jet_btagPNetCvB, num_jet)
+        jet_btagPNetCvL = self._add_padding(jet_btagPNetCvL, num_jet)
+        jet_btagPNetCvNotB = self._add_padding(jet_btagPNetCvNotB, num_jet)
+        jet_btagPNetQvG = self._add_padding(jet_btagPNetQvG, num_jet)
+        jet_PNetRegPtRawCorr = self._add_padding(jet_PNetRegPtRawCorr, num_jet)
+        jet_PNetRegPtRawCorrNeutrino = self._add_padding(jet_PNetRegPtRawCorrNeutrino, num_jet)
+        jet_PNetRegPtRawRes = self._add_padding(jet_PNetRegPtRawRes, num_jet)
+        fatjet_pt = self._add_padding(fatjet_pt, num_fatjet)
+        fatjet_eta = self._add_padding(fatjet_eta, num_fatjet)
+        fatjet_phi = self._add_padding(fatjet_phi, num_fatjet)
+        fatjet_mass = self._add_padding(fatjet_mass, num_fatjet)
+        fatjet_particleNet_QCD = self._add_padding(fatjet_particleNet_QCD, num_fatjet)
+        fatjet_particleNet_XbbVsQCD = self._add_padding(fatjet_particleNet_XbbVsQCD, num_fatjet)
+        fatjet_particleNetWithMass_QCD = self._add_padding(fatjet_particleNetWithMass_QCD, num_fatjet)
+        fatjet_particleNetWithMass_HbbvsQCD = self._add_padding(fatjet_particleNetWithMass_HbbvsQCD, num_fatjet)
+        fatjet_particleNet_massCorr = self._add_padding(fatjet_particleNet_massCorr, num_fatjet)
 
         lep1_p4 = vector.zip({'pt': lep1_pt, 'eta': lep1_eta, 'phi': lep1_phi, 'mass': lep1_mass})
         lep2_p4 = None
@@ -255,9 +267,6 @@ class DeepHME:
         met_p4 = vector.zip({'pt': met_pt, 'eta': 0.0, 'phi': met_phi, 'mass': 0.0})
         jet_p4 = vector.zip({'pt': jet_pt, 'eta': jet_eta, 'phi': jet_phi, 'mass': jet_mass})
         fatjet_p4 = vector.zip({'pt': fatjet_pt, 'eta': fatjet_eta, 'phi': fatjet_phi, 'mass': fatjet_mass})
-
-        num_jet = self._object_count['centralJet']
-        num_fatjet = self._object_count['SelectedFatJet']
 
         jet_p4 = jet_p4[:, :num_jet]
         fatjet_p4 = fatjet_p4[:, :num_fatjet]
@@ -358,12 +367,6 @@ class DeepHME:
         outputs_even = np.transpose(outputs_even, (1, 0, 2))
 
         if self._standardize:
-            if self._is_quantile:
-                self._target_scales_odd = np.repeat(self._target_scales_odd[:, None], 3, axis=1)
-                self._target_means_odd = np.repeat(self._target_means_odd[:, None], 3, axis=1)
-                self._target_scales_even = np.repeat(self._target_scales_even[:, None], 3, axis=1)
-                self._target_means_even = np.repeat(self._target_means_even[:, None], 3, axis=1)
-
             outputs_odd *= self._target_scales_odd
             outputs_odd += self._target_means_odd
             outputs_even *= self._target_scales_even
